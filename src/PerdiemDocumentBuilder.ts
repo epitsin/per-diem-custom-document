@@ -39,7 +39,7 @@ export class PerDiemDocumentBuilder {
     }
   }
 
-  async generatePerDiemDocument(expenseId: string, regenerateIfExists: boolean): Promise<string> {
+  async generatePerDiemDocument(expenseId: string): Promise<string> {
     try {
       //Get expense
       const expense = await this.getExpense(expenseId);
@@ -49,7 +49,7 @@ export class PerDiemDocumentBuilder {
         return 'Expense is not a per-diem.';
       }
 
-      if (!regenerateIfExists && expense.document.files.length > 1) {
+      if (expense.document.files.length > 1) {
         return 'Custom per-diem form already generated for this expense.';
       }
 
