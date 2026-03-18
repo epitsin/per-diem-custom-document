@@ -327,12 +327,16 @@ export class PerDiemDocumentBuilder {
   }
 
   private getCustomFieldValue(customField: any): string {
-    if (customField.value !== undefined) {
-      return customField.value;
+    const value = customField?.value;
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value;
     }
-    if (customField.selectedValues?.[0]?.label) {
-      return customField.selectedValues[0].label;
+
+    const label = customField?.selectedValues?.[0]?.label;
+    if (typeof label === 'string' && label.trim() !== '') {
+      return label;
     }
+
     return '';
   }
 
