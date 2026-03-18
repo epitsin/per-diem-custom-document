@@ -39,7 +39,7 @@ export class PerDiemDocumentBuilder {
     }
   }
 
-  async generatePerDiemDocument(expenseId: string): Promise<string> {
+  async generatePerDiemDocument(expenseId: string, skipIfExists: boolean = false): Promise<string> {
     try {
       //Get expense
       const expense = await this.getExpense(expenseId);
@@ -49,8 +49,10 @@ export class PerDiemDocumentBuilder {
         return 'Expense is not a per-diem.';
       }
 
-      if (expense.document.files.length > 1) {
-        return 'Custom per-diem form already generated for this expense.';
+      //In webhook mode, skip if a document already exists to prevent duplicates from retries.
+      //In generate mode, always regenerate (appends a new version since the API is append-only).
+      if (skipIfExists && expense.document.files.length > 0) {
+        return 'Custom per-diem form already generated for this expense. Use ?mode=generate to regenerate.';
       }
 
       //Get expense data

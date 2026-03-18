@@ -228,8 +228,8 @@ The function accepts 3 modes via the `mode` query parameter:
 
 | Mode | Method | Description |
 |------|--------|-------------|
-| `webhook` | POST | Called by Payhawk webhook. Generates document and allows regeneration. Body: `{"payload": {"expenseId": "123"}}` |
-| `generate` | POST | Manual trigger. Skips if document already exists. Body: `{"payload": {"expenseId": "123"}}` |
+| `webhook` | POST | Called by Payhawk webhook. Skips if a document already exists (prevents duplicates from retries). Body: `{"payload": {"expenseId": "123"}}` |
+| `generate` | POST | Manual trigger. Always generates a new document (appends — the Payhawk API is append-only). Use this to regenerate after custom field changes. Body: `{"payload": {"expenseId": "123"}}` |
 | `init` | POST | Placeholder for webhook auto-registration (not fully implemented — register manually via API) |
 
 ## Local Development
