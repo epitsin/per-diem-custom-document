@@ -82,12 +82,27 @@ export class PerDiemDocumentBuilder {
       const auth = await this.getGoogleAuth(['https://www.googleapis.com/auth/drive']);
       const drive = google.drive({ version: 'v3', auth });
 
-      //Copy the template file
       const templateFileId = process.env.GDOCS_TEMPLATE_FILE_ID;
-      const response = await drive.files.copy({
+      const targetFolderId = process.env.GDOCS_TARGET_FOLDER_ID;
+
+      const templateMeta = await drive.files.get({
         fileId: templateFileId,
+        supportsAllDrives: true,
+        fields: 'id,name,parents,driveId',
         auth
       });
+      const folderId = templateMeta.data.parents?.[0] || targetFolderId;
+
+      const copyOptions: any = {
+        fileId: templateFileId,
+        supportsAllDrives: true,
+        auth
+      };
+      if (folderId) {
+        copyOptions.requestBody = { parents: [folderId] };
+      }
+
+      const response = await drive.files.copy(copyOptions);
  
       if (response.status === 200) {
 
@@ -97,6 +112,7 @@ export class PerDiemDocumentBuilder {
           try {
             await drive.files.update({
               fileId: newFileId,
+              supportsAllDrives: true,
               resource: {
                 name: nameForNewFile
               }
@@ -166,7 +182,6 @@ export class PerDiemDocumentBuilder {
 
   private async getGoogleAuth(scopes:string[]): Promise<any> {
     const auth = await google.auth.getClient({
-      keyFile: 'config/key.json',
       scopes
     });
     return auth;
@@ -238,21 +253,28 @@ export class PerDiemDocumentBuilder {
       }
       result[PHLDR_DESTINATION] = destinationString;
 
+      result[PHLDR_EMPLOYEE_TEAM] = '';
+      result[PHLDR_EMPLOYEE_PARENT_TEAM] = '';
+      result[PHLDR_WORK_TITLE] = '';
+      result[PHLDR_TRIP_REASON] = '';
+      result[PHLDR_TRANSPORT_TYPE] = '';
+
       const customFields: [any] = expense.reconciliation.customFields;
       customFields.forEach(customField => {
+        const fieldValue = this.getCustomFieldValue(customField);
         switch (customField.id) {
           case 'teams': //Employee team and parent team
-            result[PHLDR_EMPLOYEE_TEAM] = customField.selectedValues[0].label;
-            result[PHLDR_EMPLOYEE_PARENT_TEAM] = customField.selectedValues.length === 2 ? customField.selectedValues[1].label : '';
+            result[PHLDR_EMPLOYEE_TEAM] = customField.selectedValues?.[0]?.label || '';
+            result[PHLDR_EMPLOYEE_PARENT_TEAM] = customField.selectedValues?.length === 2 ? customField.selectedValues[1].label : '';
             break;
-          case 'ekip_e2a8e2': //Employee work title
-            result[PHLDR_WORK_TITLE] = customField.selectedValues[0].label;
+          case 'dlzhnost_zmv7an': //Employee work title (Длъжност)
+            result[PHLDR_WORK_TITLE] = fieldValue;
             break;
-          case 'prichina_za_komandir_7e88c0': //Trip reason
-            result[PHLDR_TRIP_REASON] = customField.selectedValues[0].label;
+          case 'prichina_za_komandir_mrlw9p': //Trip reason (Причина за командировка)
+            result[PHLDR_TRIP_REASON] = fieldValue;
             break;
-          case 'vid_transportno_sred_abe762': //Transport type
-            result[PHLDR_TRANSPORT_TYPE] = customField.selectedValues[0].label;
+          case 'vid_transportno_sred_28lbht': //Transport type (Вид транспортно средство)
+            result[PHLDR_TRANSPORT_TYPE] = fieldValue;
             break;
           default:
             break;
@@ -285,13 +307,33 @@ export class PerDiemDocumentBuilder {
   }
 
   private async getEmployeeName(employee: any): Promise<string> {
-    return await this.getEmployeeCyrillicName(employee.id);
+    try {
+      const cyrillicName = await this.getEmployeeCyrillicName(employee.id);
+      if (cyrillicName) {
+        return cyrillicName;
+      }
+    } catch (err) {
+      // reimbursement-details not available
+    }
+    return `${employee.firstName} ${employee.lastName}`;
   }
 
   private async getEmployeeCyrillicName(employeeId: string): Promise<string> {
     const userDetailsResponse = await this.makePayhawkHttpRequest('GET', `users/${employeeId}/reimbursement-details`, null, null);
-    const userDetails = userDetailsResponse.data;
-    return userDetails.accountHolder;
+    if (userDetailsResponse.status === 204 || !userDetailsResponse.data) {
+      return '';
+    }
+    return userDetailsResponse.data.accountHolder || '';
+  }
+
+  private getCustomFieldValue(customField: any): string {
+    if (customField.value !== undefined) {
+      return customField.value;
+    }
+    if (customField.selectedValues?.[0]?.label) {
+      return customField.selectedValues[0].label;
+    }
+    return '';
   }
 
   private async uploadDocumentToPayhawk(expenseId: string, fileBuffer: Buffer): Promise<string> {
