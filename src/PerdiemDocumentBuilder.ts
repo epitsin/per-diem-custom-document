@@ -39,7 +39,7 @@ export class PerDiemDocumentBuilder {
     }
   }
 
-  async generatePerDiemDocument(expenseId: string): Promise<string> {
+  async generatePerDiemDocument(expenseId: string, regenerateIfExists: boolean): Promise<string> {
     try {
       //Get expense
       const expense = await this.getExpense(expenseId);
@@ -47,6 +47,10 @@ export class PerDiemDocumentBuilder {
       //If the expense is not of type perDiem - abort
       if (expense.type !== 'perDiem') {
         return 'Expense is not a per-diem.';
+      }
+
+      if (!regenerateIfExists && expense.document.files.length > 1) {
+        return 'Custom per-diem form already generated for this expense.';
       }
 
       //Get expense data
@@ -87,7 +91,7 @@ export class PerDiemDocumentBuilder {
         fields: 'id,name,parents,driveId',
         auth
       });
-      const folderId = templateMeta.data.parents?.[0] || targetFolderId;
+      const folderId = targetFolderId || templateMeta.data.parents?.[0];
 
       const copyOptions: any = {
         fileId: templateFileId,
@@ -166,6 +170,7 @@ export class PerDiemDocumentBuilder {
         {
           fileId: googleDriveFileId,
           mimeType: 'application/pdf',
+          supportsAllDrives: true,
         },
         { responseType: 'stream' }
       );
@@ -255,7 +260,7 @@ export class PerDiemDocumentBuilder {
       result[PHLDR_TRIP_REASON] = '';
       result[PHLDR_TRANSPORT_TYPE] = '';
 
-      const customFields: [any] = expense.reconciliation.customFields;
+      const customFields: any[] = expense.reconciliation.customFields;
       customFields.forEach(customField => {
         const fieldValue = this.getCustomFieldValue(customField);
         switch (customField.id) {

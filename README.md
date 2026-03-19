@@ -216,7 +216,7 @@ curl -s "https://api.payhawk.com/api/v3/accounts/{account-id}/webhooks" \
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `PAYHAWK_API_KEY` | Payhawk API key (base64-encoded) | `NjI1YjJl...` |
+| `PAYHAWK_API_KEY` | Payhawk API key | `NjI1YjJl...` |
 | `PAYHAWK_ACCOUNT_ID` | Payhawk account ID | `payhawk_bulgaria_demo_ec0ec516_demo` |
 | `GDOCS_TEMPLATE_FILE_ID` | Google Docs template file ID | `1Yg-avRZ-fZmFs...` |
 | `GDOCS_TARGET_FOLDER_ID` | Google Drive folder ID for generated copies | `1knPnnS8IUZa...` |

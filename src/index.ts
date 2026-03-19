@@ -18,11 +18,11 @@ export const main = async (req: Request, res: Response) => {
         } else if (req.query?.mode === 'webhook') {
             console.log('Processing webhook call: ' + JSON.stringify(req.body));
             const expenseId = req.body.payload.expenseId;
-            result = await perDiemDocumentBuilder.generatePerDiemDocument(expenseId);
+            result = await perDiemDocumentBuilder.generatePerDiemDocument(expenseId, true);
         } else if (req.query?.mode === 'generate') {
             console.log('Processing generate call: ' + JSON.stringify(req.body));
             const expenseId = req.body.payload.expenseId;
-            result = await perDiemDocumentBuilder.generatePerDiemDocument(expenseId);
+            result = await perDiemDocumentBuilder.generatePerDiemDocument(expenseId, false);
         } else {
             result = 'Unknown request type. Aborting.';
             console.error(result);
