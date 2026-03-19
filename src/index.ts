@@ -18,7 +18,19 @@ export const main = async (req: Request, res: Response) => {
         } else if (req.query?.mode === 'webhook') {
             console.log('Processing webhook call: ' + JSON.stringify(req.body));
             const expenseId = req.body.payload.expenseId;
-            result = await perDiemDocumentBuilder.generatePerDiemDocument(expenseId, true);
+
+            // Respond immediately to prevent Payhawk from retrying the webhook.
+            // Cloud Run keeps the function alive after the response is sent,
+            // so the document generation continues in the background.
+            res.status(200).send(JSON.stringify({value: 'accepted'}));
+
+            try {
+                result = await perDiemDocumentBuilder.generatePerDiemDocument(expenseId, true);
+                console.log(result);
+            } catch (error: any) {
+                console.error(`Background processing failed: ${error.message}`);
+            }
+            return;
         } else if (req.query?.mode === 'generate') {
             console.log('Processing generate call: ' + JSON.stringify(req.body));
             const expenseId = req.body.payload.expenseId;
