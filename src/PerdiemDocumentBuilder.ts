@@ -5,6 +5,11 @@ var toArray = require('stream-to-array');
 const ACCOUNT_ID = process.env.PAYHAWK_ACCOUNT_ID;
 const PAYHAWK_API_BASE_URL = `https://api.payhawk.com/api/v3/accounts/${ACCOUNT_ID}`;
 
+const TEAMS_FIELD_ID = process.env.TEAMS_FIELD_ID || 'teams';
+const CUSTOM_FIELD_MAP: Record<string, string> = process.env.CUSTOM_FIELD_MAP
+  ? JSON.parse(process.env.CUSTOM_FIELD_MAP)
+  : {};
+
 const PHLDR_EXPENSE_ID = 'expense_id';                      //ID of the expense with 5 trailing zeros
 const PHLDR_FROM_DATE = 'from_date';                        //First day of the business trip in format dd.mm.yyyy
 const PHLDR_TO_DATE = 'to_date';                            //Last day of the business trip in format dd.mm.yyyy
@@ -262,23 +267,15 @@ export class PerDiemDocumentBuilder {
 
       const customFields: any[] = expense.reconciliation.customFields;
       customFields.forEach(customField => {
-        const fieldValue = this.getCustomFieldValue(customField);
-        switch (customField.id) {
-          case 'teams': //Employee team and parent team
-            result[PHLDR_EMPLOYEE_TEAM] = customField.selectedValues?.[0]?.label || '';
-            result[PHLDR_EMPLOYEE_PARENT_TEAM] = customField.selectedValues?.length === 2 ? customField.selectedValues[1].label : '';
-            break;
-          case 'dlzhnost_zmv7an': //Employee work title (Длъжност)
-            result[PHLDR_WORK_TITLE] = fieldValue;
-            break;
-          case 'prichina_za_komandir_mrlw9p': //Trip reason (Причина за командировка)
-            result[PHLDR_TRIP_REASON] = fieldValue;
-            break;
-          case 'vid_transportno_sred_28lbht': //Transport type (Вид транспортно средство)
-            result[PHLDR_TRANSPORT_TYPE] = fieldValue;
-            break;
-          default:
-            break;
+        if (customField.id === TEAMS_FIELD_ID) {
+          result[PHLDR_EMPLOYEE_TEAM] = customField.selectedValues?.[0]?.label || '';
+          result[PHLDR_EMPLOYEE_PARENT_TEAM] = customField.selectedValues?.length === 2 ? customField.selectedValues[1].label : '';
+          return;
+        }
+
+        const placeholder = CUSTOM_FIELD_MAP[customField.id];
+        if (placeholder) {
+          result[placeholder] = this.getCustomFieldValue(customField);
         }
       });
     } catch (error) {

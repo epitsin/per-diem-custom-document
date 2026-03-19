@@ -107,7 +107,7 @@ The template **must** be stored on a Google Shared Drive (not personal "My Drive
 
 ### Step 5: Custom Field IDs
 
-The code maps Payhawk custom fields by their IDs. These IDs are **account-specific** — they differ between Payhawk accounts.
+The code maps Payhawk custom fields to template placeholders via the `CUSTOM_FIELD_MAP` environment variable. Field IDs are **account-specific** — they differ between Payhawk accounts.
 
 To find the correct IDs for your account, fetch an expense via the API and inspect `reconciliation.customFields`:
 
@@ -116,15 +116,13 @@ curl -s "https://api.payhawk.com/api/v3/accounts/{account-id}/expenses/{expense-
   -H "X-Payhawk-ApiKey: {api-key}" | python3 -m json.tool
 ```
 
-Look for custom fields with labels matching "Длъжност", "Причина за командировка", "Вид транспортно средство" and note their `id` values.
+Look for custom fields with labels matching your template placeholders and note their `id` values. Then set `CUSTOM_FIELD_MAP` as a JSON object mapping field IDs to placeholder names:
 
-Update the switch cases in `getExpenseData()` in `src/PerdiemDocumentBuilder.ts`:
-
-```typescript
-case 'dlzhnost_zmv7an':              // ← replace with your account's ID for Длъжност
-case 'prichina_za_komandir_mrlw9p':  // ← replace with your account's ID for Причина за командировка
-case 'vid_transportno_sred_28lbht':  // ← replace with your account's ID for Вид транспортно средство
 ```
+CUSTOM_FIELD_MAP={"dlzhnost_zmv7an":"work_title","prichina_za_komandir_mrlw9p":"trip_reason","vid_transportno_sred_28lbht":"transport_type"}
+```
+
+The **teams** field has special handling (hierarchical: team + parent team) and is configured separately via `TEAMS_FIELD_ID` (defaults to `teams`).
 
 Custom fields can be either **dropdown** (with `selectedValues`) or **text** (with `value`). The code handles both formats automatically.
 
@@ -168,7 +166,9 @@ PAYHAWK_API_KEY={api-key},\
 GDOCS_TEMPLATE_FILE_ID={template-file-id},\
 PAYHAWK_ACCOUNT_ID={account-id},\
 WEBHOOK_EVENT_NAME=expense.approved,\
-GDOCS_TARGET_FOLDER_ID={target-folder-id}"
+GDOCS_TARGET_FOLDER_ID={target-folder-id},\
+CUSTOM_FIELD_MAP={custom-field-map-json},\
+TEAMS_FIELD_ID={teams-field-id}"
 ```
 
 **Deployment notes:**
@@ -214,13 +214,15 @@ curl -s "https://api.payhawk.com/api/v3/accounts/{account-id}/webhooks" \
 
 ## Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `PAYHAWK_API_KEY` | Payhawk API key | `NjI1YjJl...` |
-| `PAYHAWK_ACCOUNT_ID` | Payhawk account ID | `payhawk_bulgaria_demo_ec0ec516_demo` |
-| `GDOCS_TEMPLATE_FILE_ID` | Google Docs template file ID | `1Yg-avRZ-fZmFs...` |
-| `GDOCS_TARGET_FOLDER_ID` | Google Drive folder ID for generated copies | `1knPnnS8IUZa...` |
-| `WEBHOOK_EVENT_NAME` | Payhawk event to listen for | `expense.approved` |
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `PAYHAWK_API_KEY` | Yes | Payhawk API key | `NjI1YjJl...` |
+| `PAYHAWK_ACCOUNT_ID` | Yes | Payhawk account ID | `payhawk_bulgaria_demo_ec0ec516_demo` |
+| `GDOCS_TEMPLATE_FILE_ID` | Yes | Google Docs template file ID | `1Yg-avRZ-fZmFs...` |
+| `GDOCS_TARGET_FOLDER_ID` | Yes | Google Drive folder ID for generated copies (must be on a Shared Drive) | `1knPnnS8IUZa...` |
+| `WEBHOOK_EVENT_NAME` | Yes | Payhawk event to listen for | `expense.approved` |
+| `CUSTOM_FIELD_MAP` | No | JSON object mapping Payhawk custom field IDs to template placeholder names. See [Step 5](#step-5-custom-field-ids). | `{"dlzhnost_zmv7an":"work_title","prichina_za_komandir_mrlw9p":"trip_reason"}` |
+| `TEAMS_FIELD_ID` | No | Custom field ID for the teams hierarchy field. Defaults to `teams`. | `teams` |
 
 ## Cloud Function Modes
 
@@ -254,6 +256,8 @@ PAYHAWK_ACCOUNT_ID={account-id}
 GDOCS_TEMPLATE_FILE_ID={template-file-id}
 GDOCS_TARGET_FOLDER_ID={target-folder-id}
 WEBHOOK_EVENT_NAME=expense.approved
+CUSTOM_FIELD_MAP={"field_id_1":"work_title","field_id_2":"trip_reason","field_id_3":"transport_type"}
+TEAMS_FIELD_ID=teams
 ```
 
 For local Google auth, use Application Default Credentials:
@@ -270,7 +274,7 @@ The template must be on a Shared Drive, and `GDOCS_TARGET_FOLDER_ID` must point 
 Increase the function timeout and resources. Use `--min-instances=1` to avoid cold starts. The document is still generated even if Payhawk's webhook delivery times out — the function continues running.
 
 ### Custom fields not populated in PDF
-Custom field IDs are account-specific. Fetch an expense from the API and compare the `customFields[].id` values with the switch cases in `getExpenseData()`.
+Custom field IDs are account-specific. Fetch an expense from the API and compare the `customFields[].id` values with the IDs in your `CUSTOM_FIELD_MAP` environment variable. See [Step 5](#step-5-custom-field-ids).
 
 ### Employee name shows as "FirstName LastName" instead of Cyrillic
 The employee needs reimbursement details configured in Payhawk with a Cyrillic `accountHolder` name. The code falls back to the English first/last name if reimbursement details are not set.
@@ -285,3 +289,22 @@ gcloud functions logs read {function-name} \
   --project={project-id} \
   --limit=50
 ```
+
+## Current Demo Deployment
+
+Reference values for the current production demo (Payhawk Bulgaria Demo account):
+
+| Setting | Value |
+|---------|-------|
+| GCP Project | `payhawk-perdiem-demo` |
+| Region | `europe-west1` |
+| Function Name | `perdiem-doc-generator` |
+| Function URL | `https://europe-west1-payhawk-perdiem-demo.cloudfunctions.net/perdiem-doc-generator` |
+| Service Account | `perdiem-doc-sa@payhawk-perdiem-demo.iam.gserviceaccount.com` |
+| Payhawk Account ID | `payhawk_bulgaria_demo_ec0ec516_demo` |
+| Template File ID | `1Yg-avRZ-fZmFs1ZhIxLYQ-mHnsFm6r9sEG2fwOerajw` |
+| Target Folder ID | `1knPnnS8IUZaUQElTnNsyfHMos1Z7uLKk` |
+| Shared Drive ID | `0AN5PKOa5j7VPUk9PVA` |
+| Webhook ID | `62052` |
+| CUSTOM_FIELD_MAP | `{"dlzhnost_zmv7an":"work_title","prichina_za_komandir_mrlw9p":"trip_reason","vid_transportno_sred_28lbht":"transport_type"}` |
+| TEAMS_FIELD_ID | `teams` (default) |
